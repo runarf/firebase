@@ -1,43 +1,74 @@
-import React from 'react';
-import { withRouter } from 'react-router-dom';
+import React, { useReducer, useContext, useEffect } from 'react';
+import { withRouter, useHistory } from 'react-router-dom';
 import { compose } from 'recompose';
 
 import AuthUserContext from './context';
-import { withFirebase } from '../Firebase';
+import { withFirebase, FirebaseContext } from '../Firebase';
 import * as ROUTES from '../../constants/routes';
 
+const reducer = (state, action) => {
+  switch (action.type) {
+    case 'LOADING':
+      return { ...state, isLoading: false };
+    case 'LOGGED_IN':
+      return { ...state, isLoggedIn: true };
+    default:
+      return state;
+  }
+};
+
+const initialState = {
+  isLoading: true,
+  isLoggedIn: false,
+};
+
+export const useAuthorization = condition => {
+  const firebase = useContext(FirebaseContext);
+  const [state, dispatch] = useReducer(reducer, initialState);
+
+  useEffect(() => {
+    const listener = firebase.onAuthUserListener(
+      authUser => {
+        if (condition(authUser)) {
+          dispatch({ type: 'LOGGED_IN', payload: true });
+        }
+        dispatch({ type: 'LOADING' });
+      },
+      () => dispatch({ type: 'LOADING' }),
+    );
+
+    listener();
+  });
+
+  return state;
+};
+
 const withAuthorization = condition => Component => {
-  class WithAuthorization extends React.Component {
-    componentDidMount() {
-      this.listener = this.props.firebase.onAuthUserListener(
+  const WithAuthorization = () => {
+    const history = useHistory();
+    const firebase = useContext(FirebaseContext);
+    useEffect(() => {
+      const listener = firebase.onAuthUserListener(
         authUser => {
           if (!condition(authUser)) {
-            this.props.history.push(ROUTES.SIGN_IN);
+            history.push(ROUTES.SIGN_IN);
           }
         },
-        () => this.props.history.push(ROUTES.SIGN_IN),
+        () => history.push(ROUTES.SIGN_IN),
       );
-    }
+      listener();
+    }, []);
 
-    componentWillUnmount() {
-      this.listener();
-    }
+    return (
+      <AuthUserContext.Consumer>
+        {authUser =>
+          condition(authUser) ? <Component {...this.props} /> : null
+        }
+      </AuthUserContext.Consumer>
+    );
+  };
 
-    render() {
-      return (
-        <AuthUserContext.Consumer>
-          {authUser =>
-            condition(authUser) ? <Component {...this.props} /> : null
-          }
-        </AuthUserContext.Consumer>
-      );
-    }
-  }
-
-  return compose(
-    withRouter,
-    withFirebase,
-  )(WithAuthorization);
+  return WithAuthorization;
 };
 
 export default withAuthorization;

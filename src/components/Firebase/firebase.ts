@@ -1,4 +1,4 @@
-import app from 'firebase/app';
+import app, { User } from 'firebase/app';
 import 'firebase/auth';
 import 'firebase/firestore';
 
@@ -12,6 +12,13 @@ const config = {
 };
 
 class Firebase {
+  fieldValue: typeof app.firestore.FieldValue;
+  emailAuthProvider: typeof app.auth.EmailAuthProvider;
+  auth: app.auth.Auth;
+  db: app.firestore.Firestore;
+  googleProvider: app.auth.GoogleAuthProvider;
+  facebookProvider: app.auth.FacebookAuthProvider;
+  twitterProvider: app.auth.TwitterAuthProvider;
   constructor() {
     app.initializeApp(config);
 
@@ -34,10 +41,10 @@ class Firebase {
 
   // *** Auth API ***
 
-  doCreateUserWithEmailAndPassword = (email, password) =>
+  doCreateUserWithEmailAndPassword = (email: any, password: any) =>
     this.auth.createUserWithEmailAndPassword(email, password);
 
-  doSignInWithEmailAndPassword = (email, password) =>
+  doSignInWithEmailAndPassword = (email: any, password: any) =>
     this.auth.signInWithEmailAndPassword(email, password);
 
   doSignInWithGoogle = () =>
@@ -51,24 +58,28 @@ class Firebase {
 
   doSignOut = () => this.auth.signOut();
 
-  doPasswordReset = email => this.auth.sendPasswordResetEmail(email);
+  doPasswordReset = (email: any) =>
+    this.auth.sendPasswordResetEmail(email);
 
   doSendEmailVerification = () =>
-    this.auth.currentUser.sendEmailVerification({
-      url: process.env.REACT_APP_CONFIRMATION_EMAIL_REDIRECT,
+    this.auth.currentUser?.sendEmailVerification({
+      url: process.env.REACT_APP_CONFIRMATION_EMAIL_REDIRECT!,
     });
 
-  doPasswordUpdate = password =>
-    this.auth.currentUser.updatePassword(password);
+  doPasswordUpdate = (password: any) =>
+    this.auth.currentUser?.updatePassword(password);
 
   // *** Merge Auth and DB User API *** //
 
-  onAuthUserListener = (next, fallback) =>
-    this.auth.onAuthStateChanged(authUser => {
+  onAuthUserListener = (
+    next: (arg0: any) => void,
+    fallback: () => void,
+  ) => {
+    return this.auth.onAuthStateChanged((authUser: User | null) => {
       if (authUser) {
         this.user(authUser.uid)
           .get()
-          .then(snapshot => {
+          .then((snapshot: { data: () => any }) => {
             const dbUser = snapshot.data();
 
             // default empty roles
@@ -77,7 +88,7 @@ class Firebase {
             }
 
             // merge auth and db user
-            authUser = {
+            const newAuthUser = {
               uid: authUser.uid,
               email: authUser.email,
               emailVerified: authUser.emailVerified,
@@ -85,22 +96,23 @@ class Firebase {
               ...dbUser,
             };
 
-            next(authUser);
+            next(newAuthUser);
           });
       } else {
         fallback();
       }
     });
+  };
 
   // *** User API ***
 
-  user = uid => this.db.doc(`users/${uid}`);
+  user = (uid: any) => this.db.doc(`users/${uid}`);
 
   users = () => this.db.collection('users');
 
   // *** Message API ***
 
-  message = uid => this.db.doc(`messages/${uid}`);
+  message = (uid: any) => this.db.doc(`messages/${uid}`);
 
   messages = () => this.db.collection('messages');
 }
